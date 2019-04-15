@@ -1,22 +1,23 @@
 from bs4 import BeautifulSoup as BSoup  # HTML data structure
 import requests
-import numpy as np
+import grequests
 from tqdm import tqdm
 import json
 
 
-def get_text(url):
-    req = requests.get(url)
+def get_text(req, link):
     try:
-        corpus = BSoup(req.text, "html.parser")\
+        bs = BSoup(req.text, "html.parser")
+        corpus = bs\
             .find('main', {'id': 'content', 'role': 'main'})\
             .find('div', {'class': 'main-wrapper'})\
             .find('pre', {'class': 'styled'})
     except AttributeError:
-        if 'Page Not Found' in corpus.find('main', {'id': 'content'}).text:
-            return []
-        else:
-            print(f'Something weird with {url}')
+        # if 'Page Not Found' in bs.find('main', {'id': 'content'}).text:
+        #     return []
+        # else:
+        tqdm.write(f'Something weird with {req} from {link}')
+        return ''
     return corpus.decode()
 
 
@@ -43,19 +44,25 @@ def get_session(s, year, month, day):
         if 'Page Not Found' in sp.find('main', {'id': 'content'}).text:
             return []
         else:
-            print(f'Something weird with {year}-{month}-{day}/{section}')
+            tqdm.write(f'Saomething weird with {year}-{month}-{day}/{section}')
             return []
     elements = []
-    for row in tqdm(table.findAll('tr')):
+
+    section_reqs = []
+    for row in tqdm(table.findAll('tr'), desc='Making requests', disable=True):
         cols = row.findAll('td')
         if len(cols) != 2:
             print(f'Warning in {cols}')
-        # element = [e.text for e in cols]
         link = cols[0]
         link = link.findAll('a', href=True)[0]['href']
-        text = get_text(base_url + link)
+        section_reqs.append(grequests.get(base_url + link))
         idp = cols[1].text
-        elements.append([text, idp])
+        elements.append({'link': link, 'page': idp})
+
+    section_responses = grequests.map(section_reqs)
+    for idx, resp in tqdm(enumerate(section_responses), desc='recv. section'):
+        text = get_text(resp, elements[idx]['link'])
+        elements[idx]['text'] = text
     return elements
 
 
@@ -68,8 +75,8 @@ records = []
 # Not completely sure how this affects the process while in parallel.
 s = requests.Session()
 
-for month in tqdm(months):
-    for day in tqdm(days):
+for month in tqdm(months, desc='Months'):
+    for day in tqdm(days, desc='Days  '):
         data = get_session(s, year, month, day)
         if not data:
             continue
@@ -83,5 +90,3 @@ for month in tqdm(months):
 
     with open('records.data', 'wb') as f:
         f.write(json.dumps(records).encode('ascii'))
-# In[9]:
-
