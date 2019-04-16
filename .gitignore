@@ -1,6 +1,7 @@
 # CUSTOM FILES:
 
 # Data files
+data/
 *.data
 *.sqlite3
 
