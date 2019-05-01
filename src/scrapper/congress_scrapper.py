@@ -1,11 +1,12 @@
 from bs4 import BeautifulSoup as BSoup  # HTML data structure
+import argparse
 import requests
 import grequests
 from tqdm import tqdm
 import json
 
 
-def get_text(req, link):
+def get_text(req, link='<link not defined>', idx='<idx not defined>'):
     try:
         bs = BSoup(req.text, "html.parser")
         corpus = bs\
@@ -16,8 +17,11 @@ def get_text(req, link):
         # if 'Page Not Found' in bs.find('main', {'id': 'content'}).text:
         #     return []
         # else:
-        tqdm.write(f'Something weird with {req} from {link}')
-        return ''
+        error_text = f'Something weird with {req} from {link}'
+        with open('failed_records.log', 'a') as f:
+            f.write(error_text + '\n')
+        tqdm.write(error_text)
+        return '<ERROR IN REQUEST>'
     return corpus.decode()
 
 
@@ -44,7 +48,10 @@ def get_session(s, year, month, day):
         if 'Page Not Found' in sp.find('main', {'id': 'content'}).text:
             return []
         else:
-            tqdm.write(f'Saomething weird with {year}-{month}-{day}/{section}')
+            error_text = f'Something weird with {year}-{month}-{day}/{section}'
+            tqdm.write(error_text)
+            with open('failed_sessions.log', 'a') as f:
+                f.write(error_text)
             return []
     elements = []
 
@@ -61,32 +68,58 @@ def get_session(s, year, month, day):
 
     section_responses = grequests.map(section_reqs)
     for idx, resp in tqdm(enumerate(section_responses), desc='recv. section'):
-        text = get_text(resp, elements[idx]['link'])
+        identifier = f'<({year}/{month}/{day} -- {idx})>'
+        text = get_text(resp, elements[idx]['link'], identifier)
         elements[idx]['text'] = text
     return elements
 
 
-year = 2018
-months = range(1, 13)
-days = range(1, 32)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Scrap data from the US ' +
+                                     'Congressional Records.')
+    parser.add_argument('start', type=str,
+                        help='Start date (format YYYY/MM/DD).')
+    parser.add_argument('end',  type=str,
+                        help='End date (same format as start).')
 
-records = []
+    args = parser.parse_args()
 
-# Not completely sure how this affects the process while in parallel.
-s = requests.Session()
+    (year_s, month_s, day_s) = map(int, args.start.split('/'))
+    (year_e, month_e, day_e) = map(int, args.end.split('/'))
 
-for month in tqdm(months, desc='Months'):
-    for day in tqdm(days, desc='Days  '):
-        data = get_session(s, year, month, day)
-        if not data:
-            continue
-        record = {
-            'd': day,
-            'm': month,
-            'y': year,
-            'data': data
-        }
-        records.append(record)
+    years = range(year_s, year_e + 1)
+    months = range(month_s, month_e + 1)
+    # days = range(day_s, day_e + 1) # Useless right now
 
-    with open('records.data', 'wb') as f:
-        f.write(json.dumps(records).encode('ascii'))
+    records = []
+
+    # Not completely sure how this affects the process while in parallel.
+    s = requests.Session()
+    year = list(years)[0]  # TODO Add loop for years
+    for month in tqdm(months, desc='Months'):
+        # TODO isn't there a nicer way to do this
+        if month == month_s and month == month_e:
+            days = range(day_s, day_e + 1)
+        elif month == month_s:
+            days = range(day_s, 32)
+        elif month == month_e:
+            days = range(1, day_e + 1)
+        else:
+            days = range(1, 32)
+
+        for day in tqdm(days, desc='Days  '):
+            data = get_session(s, year, month, day)
+            if not data:
+                continue
+            record = {
+                'd': day,
+                'm': month,
+                'y': year,
+                'data': data
+            }
+            records.append(record)
+
+        with open('records_{}-to-{}.data'.format(args.start.replace('/', '-'),
+                                                 args.end.replace('/', '-')),
+                  'wb') as f:
+            f.write(json.dumps(records).encode('ascii'))

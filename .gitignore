@@ -4,9 +4,11 @@
 data/
 *.data
 *.sqlite3
+*.csv
+*.npy
 
 # PyCharm/IntelliJ
-.idea
+.idea/
 
 # STARNDARD STUFF FROM HERE ON:
 #   Standard .gitignore for python from github/gitignore
