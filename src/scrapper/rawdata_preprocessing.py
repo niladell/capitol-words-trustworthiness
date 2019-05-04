@@ -4,6 +4,7 @@ import re
 from tqdm import tqdm
 from collections import OrderedDict
 from ast import literal_eval
+from parse_bills import get_bills_in_text
 
 
 def load_rawdata(filename):
@@ -111,10 +112,16 @@ def clean_text(text):
 def convert_rawfile(filename):
     data = load_rawdata(filename)
     data = array2datedic(data)
-    for key, element in data.items():
-        element = clean_session(element)
-        text = join_session(element)  # Join all session segments into unique test
-        data[key] = clean_text(text)
+    for key, element in tqdm(data.items()):
+        element = clean_session(element)  # Element: [{link: , page:, text:}]
+        # text = join_session(element)  # Join session segments into unique test
+        new_element = []
+        for snippet in tqdm(element):
+            snippet = clean_text(snippet['text'])
+            bills_list = get_bills_in_text(snippet)
+            new_element.append({'text': snippet, 'bills': bills_list})
+        # tqdm.write('\n'.join(bills_list))  # Redundant right now
+        data[key] = new_element
     save_data(filename + '.clean', data)
 
 
