@@ -28,8 +28,9 @@ def get_bills_in_text(text):
         bill_names.append(bill)
         bill_reqs.append(grequests.get(f"{base_url}{bill}"))
 
+    bill_responses = grequests.map(bill_reqs)
     mentioned_bills = []
-    for req, bill in zip(bill_reqs, mentioned_bills):
+    for req, bill in zip(bill_responses, bill_names):
         bill_title = download_bill(req)
         mentioned_bills.append((bill, bill_title))
     if __debug__:
