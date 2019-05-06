@@ -4,7 +4,10 @@ import re
 from tqdm import tqdm
 from collections import OrderedDict
 from ast import literal_eval
-from parse_bills import get_bills_in_text
+from parse_bills import get_bills_in_text,\
+                        setup_requests_for_bill_list,\
+                        map_requests_for_bill_list,\
+                        process_requests_for_bill_list
 
 
 def load_rawdata(filename):
@@ -109,17 +112,74 @@ def clean_text(text):
     return text
 
 
+def group_list_by_indices(ungrouped_list, indices, forced_length=None):
+    """Groups list of elements into a list of lists based on the indices.
+    E.g. ungrouped list: ['a','b','c','d','e'], indices: [0, 0, 1, 1, 2]
+         output: [['a','b'], ['c','d'], ['e']]
+
+         Disclaimer: The indices list is assumed to be ordered, meaning that
+          it is assumed that indices[i] >= indices[j] if i>j. Also the order
+          of the elements inside the final sub-lists is gonna be preserved.
+    """
+    if not ungrouped_list:
+        return [[]]
+    grouped_list = []
+    sub_list = []
+    index_flag = 0
+    for idx, element in zip(indices, ungrouped_list):
+        if index_flag == idx:
+            sub_list.append(element)
+        else:
+            grouped_list.append(sub_list[:])
+            sub_list = []
+            index_flag += 1
+    grouped_list.append(sub_list)
+    # Extend the list with empty sub-lists till the required lenght
+    if forced_length:
+        assert len(grouped_list) <= forced_length,\
+                'List is larger than required length'
+        grouped_list.extend([
+            [] for i in range(forced_length - len(grouped_list))
+                            ])
+    return grouped_list
+
+
 def convert_rawfile(filename):
     data = load_rawdata(filename)
     data = array2datedic(data)
     for key, element in tqdm(data.items()):
         element = clean_session(element)  # Element: [{link: , page:, text:}]
-        # text = join_session(element)  # Join session segments into unique test
-        new_element = []
-        for snippet in tqdm(element):
+        # text = join_session(element)  # Join session segments into unique txt
+
+        # We need to use a bit of a more convoluted structure as doing
+        # individual requests is usually very slow. We try to first extract
+        # the bills from several segments (snippets) and then parallely do the
+        # website requests.
+        bill_names = []
+        bill_requests = []
+        bill_request_indices = []
+        snippets_list = []
+        for idx, snippet in tqdm(enumerate(element)):
             snippet = clean_text(snippet['text'])
-            bills_list = get_bills_in_text(snippet)
-            new_element.append({'text': snippet, 'bills': bills_list})
+            snippets_list.append(snippet)
+            # Parse the bill names
+            bills_in_snippet = get_bills_in_text(snippet)
+            bill_names.append(bills_in_snippet)
+            # DO grequests.get for each of the mentioned bills
+            bill_requests += setup_requests_for_bill_list(bills_in_snippet)
+            bill_request_indices += [idx]*len(bills_in_snippet)
+        # Map all requests and re-group list by the snippet index
+        bill_responses = map_requests_for_bill_list(bill_requests)
+        n_element = len(element)
+        bill_responses = group_list_by_indices(bill_responses,
+                                               bill_request_indices,
+                                               n_element)
+
+        new_element = []
+        for snippet, name, response in\
+                tqdm(zip(snippets_list, bill_names, bill_responses)):
+            bills = process_requests_for_bill_list(response, name)
+            new_element.append({'text': snippet, 'bills': bills})
         # tqdm.write('\n'.join(bills_list))  # Redundant right now
         data[key] = new_element
     save_data(filename + '.clean', data)

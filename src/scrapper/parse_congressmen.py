@@ -6,8 +6,8 @@ from rawdata_preprocessing import load_data
 
 def get_speaches_by_congressmen(text, date, congressmen_text=None):
     # Congressmen names start with the title prefix, so we use that as trigger
-    trigger_pattern = re.compile("(Mr.|Ms.|Mrs.|Miss.) ([\w ]+)\.")
-    # What's reported (after the trigger) is the surname all caps (with the 
+    trigger_pattern = re.compile(r"(Mr.|Ms.|Mrs.|Miss.) ([\w ]+)\.")
+    # What's reported (after the trigger) is the surname all caps (with the
     # exception of "Mc")
     name_pattern = re.compile(r'^(Mc|)[A-Z]+$')
     end_pattern = '_____+'
@@ -36,6 +36,9 @@ def get_speaches_by_congressmen(text, date, congressmen_text=None):
                                     {'text': text[start_pos:end_pos],
                                      'idx':  idx})
     return congressmen_text, list_of_names
+
+
+def order_by_congressmen(text, date):
 
 
 if __name__ == "__main__":
