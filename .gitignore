@@ -3,6 +3,7 @@
 # Data files
 data/
 *.data
+*.data.clean
 *.sqlite3
 *.csv
 *.npy

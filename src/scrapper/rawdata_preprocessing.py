@@ -123,23 +123,28 @@ def group_list_by_indices(ungrouped_list, indices, forced_length=None):
     """
     if not ungrouped_list:
         return [[]]
+    if not forced_length:
+        forced_length = len(indices)
     grouped_list = []
     sub_list = []
-    index_flag = 0
-    for idx, element in zip(indices, ungrouped_list):
-        if index_flag == idx:
-            sub_list.append(element)
+    index_counter = 0
+    i = 0
+    while i < forced_length:
+        if indices[index_counter] == i:
+            sub_list.append(ungrouped_list[index_counter])
+            index_counter += 1
+            if index_counter >= len(indices):
+                break
         else:
             grouped_list.append(sub_list[:])
             sub_list = []
-            index_flag += 1
+            i += 1
     grouped_list.append(sub_list)
     # Extend the list with empty sub-lists till the required lenght
-    if forced_length:
-        assert len(grouped_list) <= forced_length,\
-                'List is larger than required length'
-        grouped_list.extend([
-            [] for i in range(forced_length - len(grouped_list))
+    assert len(grouped_list) <= forced_length,\
+            'List is larger than required length'
+    grouped_list.extend([
+        [] for i in range(forced_length - len(grouped_list))
                             ])
     return grouped_list
 
