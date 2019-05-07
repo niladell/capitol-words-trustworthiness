@@ -1,5 +1,6 @@
 import re
 import argparse
+import json
 from collections import defaultdict
 from rawdata_preprocessing import load_data
 
@@ -38,7 +39,10 @@ def get_speaches_by_congressmen(text, date, congressmen_text=None):
     return congressmen_text, list_of_names
 
 
-def order_by_congressmen(text, date):
+# def order_by_congressmen(text, date):
+
+def extract_text(session):
+    return [s['text'] for s in session]
 
 
 if __name__ == "__main__":
@@ -49,15 +53,23 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    from rawdata_preprocessing import join_session, save_data, keys_tuple2str
+
     if not args.filename.split('.')[-1] == 'clean':
         raise NameError('Your filename should end with ".clean", did you '
                         'preprocess the data?')
     data = load_data(args.filename)
-    for idx, (date, text) in enumerate(data.items()):
+    all_stuff = {}
+    for idx, (date, session) in enumerate(data.items()):
+        text = join_session(session)
         congressmen_text, list_of_names =\
             get_speaches_by_congressmen(text, date)
-        print(congressmen_text)
-        print('\n---------------\n')
+        # print(congressmen_text)
+        # print('\n---------------\n')
         print(set(list_of_names))
-        if idx > 3:
-            break
+        # if idx > 3:
+        #     break
+        all_stuff.update(congressmen_text)
+        # TODO this inconsistency of tuple and string keys is starting to become annoying, I should refactor all of this
+    congressmen_text = {k: keys_tuple2str(v) for k, v in all_stuff.items()}
+    save_data(args.filename + '.congressmen', congressmen_text)
